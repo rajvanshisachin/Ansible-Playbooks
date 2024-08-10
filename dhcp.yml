@@ -1,0 +1,33 @@
+---
+- name: DHCP Server Configuration Playbook
+  hosts: node1
+  become: true
+  tasks:
+  - name: Setting up the static hostname in the machine
+    hostname:
+      name: dhcp-server.local
+      use: systemd
+  - name: Installing DHCP packages in the machine
+    dnf:
+      name: dhcp*
+      state: latest
+  - name: Copying the configuration file into the /etc/dhcp directory using Jinja2 template
+    template:
+      src: dhcp.conf.j2
+      dest: /etc/dhcp/dhcpd.conf
+      force: true
+      backup: yes
+  - name: Allowing DHCP traffic in firewall
+    firewalld:
+      service: dhcp
+      zone: public
+      permanent: true
+      immediate: true
+      state: enabled
+  - name: Starting & enabling the DHCPD Server
+    service:
+      name: dhcpd
+      state: started
+      enabled: yes
+      restart: yes
+---
