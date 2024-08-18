@@ -1,0 +1,159 @@
+---
+- name: HAProxy Server Configuration Playbook.
+  hosts: localhost
+  become: true
+  tasks:
+    - name: Setting up the static hostname in the Server Machine.
+      hostname:
+        name: haproxy-server
+        use: systemd
+    - name: Making entries in the /etc/hosts file for the server hostname & IP.
+      blockinfile:
+        dest: /etc/hosts
+        block: |
+          192.168.0.0 haproxy-server
+          192.168.1.0 nginx-node01
+          192.168.1.1 nginx-node02
+        insertafter: EOF
+    - name: Installing HAProxy packages in the machine.
+      dnf:
+        name: haproxy
+        state: latest
+    - name: Copying the /etc/haproxy/haproxy.cfg file using ansible Jinja template.
+      template:
+        src: haproxy.cfg.j2
+        dest: /etc/haproxy/haproxy.cfg
+        force: true
+    - name: Making changes in the /etc/rsyslog.conf file.
+      replace:
+        dest: /etc/rsyslog.conf
+        regexp: '^#module(load="imudp")'
+        replace: module(load="imudp")
+    - name: Making changes in the /etc/rsyslog.conf file.
+      replace:
+        dest: /etc/rsyslog.conf
+        regexp: '^#input(type="imudp" port="514")'
+        replace: input(type="imudp" port="514")
+    - name: Creating haproxy.conf file for the rsyslog.
+      copy:
+        dest: /etc/rsyslog.d/haproxy.conf
+        content: |
+          local2.* /var/log/haproxy-access.log
+          local2.notice /var/log/haproxy-info.log
+    - name: Restarting & enabling the rsyslog service.
+      service:
+        name: rsyslog
+        state: restarted
+        enabled: 'yes'
+        
+    - name: Tunrning on the HAProxy Connect any SELinux Boolean.
+      command: setsebool -P haproxy_connect_any1
+    
+    - name: Allowing HTTP traffic in the firewall.
+      firewalld:
+        service: http
+        zone: public
+        permanent: true
+        immediate: true
+        state: enabled
+    - name: Starting & enabling the haproxy service.
+      service:
+        name: haproxy
+        state: started
+        enabled: 'yes'
+        
+- hosts: node1
+  become: true
+  tasks:
+    - name: Setting up the static hostname in the node1 machine.
+      hostname:
+        name: nginx-node01
+        use: systemd
+    - name: Making entries in the /etc/hosts file for the servers hostname & IP.
+      blockinfile:
+        dest: /etc/hosts
+        block: |
+          192.168.0.0 haproxy-server
+          192.168.1.0 nginx-node01
+          192.168.1.1 nginx-node02
+        insertafter: EOF
+        
+    - name: Installing nginx packages in the machine.
+      dnf:
+        name: nginx
+        state: latest
+        
+    - name: Copying the nginx file to the /usr/share/nginx/html/ directory.
+      copy:
+        src: '/home/{{ ansible_user }}/code.html'
+        dest: /usr/share/nginx/html/code.html
+        mode: '0644'
+        
+    - name: Creating the index.html file for node1.
+      copy:
+        dest: "/usr/share/nginx/html/index.html"
+        content: |
+          <h1> I am node1 </h1>
+          <i> This page is hosted on node1 </i>
+          
+    - name: Allowing Nginx traffic in the firewall.
+      firewalld:
+        service: http
+        zone: public
+        permanent: true
+        immediate: true
+        state: enabled
+        
+    - name: Starting & enabling the nginx service.
+      service:
+        name: nginx
+        state: started
+        enabled: 'yes'
+        
+- hosts: node2
+  become: true
+  tasks:
+    - name: Setting up the static hostname in the node2 machine.
+      hostname:
+        name: nginx-node02
+        use: systemd
+    - name: Making entries in the /etc/hosts file for the servers hostname & IP.
+      blockinfile:
+        dest: /etc/hosts
+        block: |
+          192.168.0.0 haproxy-server
+          192.168.1.0 nginx-node01
+          192.168.1.1 nginx-node02
+        insertafter: EOF
+        
+    - name: Installing nginx packages in the machine.
+      dnf:
+        name: nginx
+        state: latest
+        
+    - name: Copying the nginx file to the /usr/share/nginx/html/ directory.
+      copy:
+        src: '/home/{{ ansible_user }}/code.html'
+        dest: /usr/share/nginx/html/code.html
+        mode: '0644'
+        
+    - name: Creating the index.html file for node1.
+      copy:
+        dest: "/usr/share/nginx/html/index.html"
+        content: |
+          <h1> I am node2 </h1>
+          <i> This page is hosted on node2 </i>
+          
+    - name: Allowing Nginx traffic in the firewall.
+      firewalld:
+        service: http
+        zone: public
+        permanent: true
+        immediate: true
+        state: enabled
+        
+    - name: Starting & enabling the nginx service.
+      service:
+        name: nginx
+        state: started
+        enabled: 'yes'
